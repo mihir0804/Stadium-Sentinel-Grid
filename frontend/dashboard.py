@@ -39,6 +39,7 @@ st.markdown("""
     .text-cyan { color: #00f2fe; }
     .text-emerald { color: #00ff87; }
     .text-warning { color: #ff3366; }
+    .text-orange { color: #ff9900; }
     .stTextInput>div>div>input, .stTextArea>div>div>textarea {
         background-color: rgba(10, 15, 25, 0.6) !important; color: #00f2fe !important;
         border: 1px solid rgba(0, 242, 254, 0.3) !important;
@@ -76,14 +77,35 @@ with col1:
         if st.button("Execute SOC Analysis ⚡", type="primary", use_container_width=True):
             if staff_query:
                 with st.spinner("Analyzing operational parameters..."):
-                    response = route_stadium_query(user_query=staff_query, user_role="staff", telemetry=json.loads(telemetry_input))
+                    # Parse telemetry safely
+                    try:
+                        telemetry_dict = json.loads(telemetry_input)
+                    except:
+                        telemetry_dict = {}
+                    
+                    response = route_stadium_query(user_query=staff_query, user_role="staff", telemetry=telemetry_dict)
                     timestamp = datetime.now().strftime("%H:%M:%S")
                     st.session_state.staff_logs.insert(0, {"time": timestamp, "query": staff_query, "response": response})
 
         st.subheader("Terminal Logs")
         for log in st.session_state.staff_logs:
             with st.expander(f"[{log['time']}] >> {log['query']}", expanded=True):
-                st.info(log['response'].get("action_protocol", "Analyzing...") if isinstance(log['response'], dict) else log['response'])
+                resp = log['response']
+                
+                # Check if the response contains structured keys
+                if isinstance(resp, dict) and "action_protocol" in resp:
+                    # Risk Level Styling
+                    risk = resp.get("risk_level", "Unknown")
+                    # Assign color based on risk
+                    color_class = "text-warning" if risk.lower() == "high" else "text-orange" if risk.lower() == "medium" else "text-emerald"
+                    
+                    st.markdown(f"**Risk Level:** <span class='{color_class}'>[{risk.upper()}]</span>", unsafe_allow_html=True)
+                    st.markdown(f"**Affected Zones:** `{', '.join(resp.get('affected_zones', []))}`")
+                    st.markdown("**Action Protocol:**")
+                    st.info(resp.get("action_protocol", "No protocol provided."))
+                else:
+                    # Fallback for raw text
+                    st.write(str(resp))
 
 # =========================================================
 # COLUMN 2: Inclusive Fan Experience & Mobility Hub
