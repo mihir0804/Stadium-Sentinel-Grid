@@ -31,6 +31,14 @@ def _get_gemini_client() -> genai.Client:
 def _get_model_id(model_env_var: str = "GEMINI_MODEL_ID", default_model: str = "gemini-1.5-pro") -> str:
     return os.getenv(model_env_var, default_model)
 
+# --- Universal Safety Settings for Security/Emergency App ---
+safe_config = [
+    types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
+    types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+    types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+    types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+]
+
 def operations_agent(query: str, status_telemetry: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Acts as an automated Stadium Operations Center (SOC) intelligence hub for FIFA 2026.
@@ -55,12 +63,14 @@ def operations_agent(query: str, status_telemetry: Optional[Dict[str, Any]] = No
         client = _get_gemini_client()
         model_id = _get_model_id()
         
-        # Requesting structured JSON response using the new SDK syntax
+        # Requesting structured JSON response and disabling safety blocks
         response = client.models.generate_content(
             model=model_id,
             contents=prompt,
             config=types.GenerateContentConfig(
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                safety_settings=safe_config,
+                temperature=0.2
             )
         )
         return json.loads(response.text)
@@ -92,9 +102,14 @@ def accessibility_assistant(query: str, language: str) -> str:
         client = _get_gemini_client()
         model_id = _get_model_id()
         
+        # Disabling safety blocks so wheelchair/medical words don't get rejected
         response = client.models.generate_content(
             model=model_id,
-            contents=prompt
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                safety_settings=safe_config,
+                temperature=0.3
+            )
         )
         return response.text.strip()
     except Exception as e:
@@ -142,7 +157,11 @@ def route_stadium_query(user_query: str, user_role: str, telemetry: Optional[Dic
                 )
                 response = client.models.generate_content(
                     model=model_id,
-                    contents=prompt
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        safety_settings=safe_config,
+                        temperature=0.4
+                    )
                 )
                 return response.text.strip()
             except Exception as e:
